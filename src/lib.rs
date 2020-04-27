@@ -162,6 +162,11 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
+extern crate rsmalloc;
+
+#[global_allocator]
+static GLOBAL: rsmalloc::Allocator = rsmalloc::Allocator;
+
 pub mod array;
 pub mod cross_validation;
 pub mod datasets;
@@ -181,4 +186,133 @@ pub mod prelude {
     //! Basic data structures and traits used throughout `rustlearn`.
     pub use array::prelude::*;
     pub use traits::*;
+}
+
+use prelude::*;
+use trees::decision_tree;
+
+extern crate hyper;
+use hyper::client::Client;
+use std::io::{Read, Write};
+use std::ffi::CStr;
+
+extern crate libc;
+use libc::c_char;
+
+fn download_data(url: &str) -> Result<String, hyper::error::Error> {
+    let client = Client::new();
+
+    let mut output = String::new();
+
+    let mut response = try!(client.get(url).send());
+    try!(response.read_to_string(&mut output));
+
+    Ok(output)
+}
+
+fn get_raw_data(url: &str) -> String {
+    println!("Downloading data for {}", url);
+    let raw_data = download_data(url).unwrap();
+    println!("done.");
+    raw_data
+}
+
+fn build_x_matrix_internal(url: &str) -> SparseRowArray {
+    let data = get_raw_data(url);
+    let mut coo = Vec::new();
+
+    for (row, line) in data.lines().enumerate() {
+        for col_str in line.split_whitespace() {
+            let col = col_str.parse::<usize>().unwrap();
+            coo.push((row, col));
+        }
+    }
+
+    let num_rows = coo.iter().map(|x| x.0).max().unwrap() + 1;
+    let num_cols = coo.iter().map(|x| x.1).max().unwrap() + 1;
+
+    let mut array = SparseRowArray::zeros(num_rows, num_cols);
+
+    for &(row, col) in coo.iter() {
+        array.set(row, col, 1.0);
+    }
+
+    array
+}
+
+/*#[no_mangle]
+pub extern "C" fn build_x_matrix(url: *const c_char) -> *mut SparseRowArray {
+    let url: &str = unsafe {
+        CStr::from_ptr(url).to_str().unwrap()
+    };
+    Box::into_raw(Box::new(build_x_matrix_internal(url)))
+}*/
+
+fn build_y_array_internal(url: &str) -> Array {
+    let data = get_raw_data(url);
+    let mut y = Vec::new();
+    
+    for line in data.lines() {
+        for datum_str in line.split_whitespace() {
+            let datum = datum_str.parse::<i32>().unwrap();
+            y.push(datum);
+        }
+    }
+
+    let array = Array::from(y.iter().map(|&x| 
+                                         match x {
+                                             -1 => 0.0,
+                                             _ => 1.0,
+                                         }
+    ).collect::<Vec<f32>>());
+
+    array
+}
+    
+/*#[no_mangle]
+pub extern "C" fn build_y_array(url: *const c_char) -> *mut Array {
+    let url: &str = unsafe {
+        CStr::from_ptr(url).to_str().unwrap()
+    };
+    Box::into_raw(Box::new(build_y_array_internal(url)))
+}*/
+
+fn get_train_data() -> (SparseRowArray, Array) {
+    let X_train = build_x_matrix_internal("http://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/DOROTHEA/dorothea_train.data");
+    let y_train = build_y_array_internal("http://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/DOROTHEA/dorothea_train.labels");
+
+    (X_train, y_train)
+}
+
+#[no_mangle]
+pub extern "C" fn decision_tree_train() -> *mut decision_tree::DecisionTree {
+    let (X_train, y_train) = get_train_data();
+    let X_train = SparseColumnArray::from(&X_train);
+    
+    let mut model = decision_tree::Hyperparameters::new(X_train.cols()).build();
+
+    model.fit(&X_train, &y_train).unwrap();
+    println!("Tree stats: size {}, depth {}, num nodes {}", model.get_size(),
+             model.get_depth(), model.get_num_nodes());
+    Box::into_raw(Box::new(model)) // copies the model into shared memory
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn decision_tree_predict(decision_tree: *mut decision_tree::DecisionTree,
+                                               test_x_url: *const c_char,
+                                               test_y_url: *const c_char) -> f32 {
+    let model = decision_tree.as_ref().unwrap();
+    let test_x_url: &str = unsafe {
+        CStr::from_ptr(test_x_url).to_str().unwrap()
+    };
+    let test_y_url: &str = unsafe {
+        CStr::from_ptr(test_y_url).to_str().unwrap()
+    };
+    let X_test = build_x_matrix_internal(test_x_url);
+    let y_test = build_y_array_internal(test_y_url);
+    let X_test = SparseColumnArray::from(&X_test);
+    let y_test = Array::from(y_test);
+    let predictions = model.predict(&X_test).unwrap();
+    let accuracy = metrics::accuracy_score(&y_test, &predictions);
+    accuracy
 }

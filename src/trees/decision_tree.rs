@@ -31,7 +31,9 @@
 //! let prediction = model.predict(&X).unwrap();
 //! ```
 
-use std::cmp::{min, Ordering};
+use std::mem::size_of_val;
+
+use std::cmp::{max, min, Ordering};
 use std::f32;
 use std::usize;
 
@@ -282,6 +284,12 @@ impl Hyperparameters {
     }
 }
 
+trait GetStats {
+    fn get_size(&self) -> usize;
+    fn get_depth(&self) -> usize;
+    fn get_num_nodes(&self) -> usize;
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 enum Node {
     Interior {
@@ -292,6 +300,44 @@ enum Node {
     Leaf {
         probability: f32,
     },
+}
+
+impl GetStats for Node {
+    fn get_size(&self) -> usize {
+        let base: usize = size_of_val::<Node>(self);
+        let rec = match self {
+            Node::Interior { ref children, .. } => {
+                children.0.get_size() + children.1.get_size()
+            }
+            Node::Leaf { .. } => 0
+        };
+
+        base + rec
+    }
+
+    fn get_depth(&self) -> usize {
+        let base: usize = 1;
+        let rec = match self {
+            Node::Interior { ref children, .. } => {
+                max(children.0.get_depth(), children.1.get_depth())
+            }
+            Node::Leaf { .. } => 1
+        };
+
+        base + rec
+    }
+
+    fn get_num_nodes(&self) -> usize {
+        let base: usize = 1;
+        let rec = match self {
+            Node::Interior { ref children, .. } => {
+                children.0.get_num_nodes() + children.1.get_num_nodes()
+            }
+            Node::Leaf { .. } => 1
+        };
+
+        base + rec
+    }
 }
 
 /// A two-class decision tree.
@@ -856,6 +902,35 @@ impl DecisionTree {
                 }
             }
             Node::Leaf { probability } => probability,
+        }
+    }
+
+    pub fn get_size(&self) -> usize {
+        let base: usize = size_of_val::<DecisionTree>(self);
+        let rec = match self.root {
+            Some(ref node) => {
+                node.get_size()
+            }
+            None => 0
+        };
+        base + rec
+    }
+
+    pub fn get_depth(&self) -> usize {
+        match self.root {
+            Some(ref node) => {
+                node.get_depth()
+            }
+            None => 0
+        }
+    }
+
+    pub fn get_num_nodes(&self) -> usize {
+        match self.root {
+            Some(ref node) => {
+                node.get_num_nodes()
+            }
+            None => 0
         }
     }
 }

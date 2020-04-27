@@ -108,9 +108,9 @@ fn build_y_array(data: &str) -> Array {
 
 fn get_train_data() -> (SparseRowArray, SparseRowArray) {
 
-    let X_train = build_x_matrix(&get_raw_data("https://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/DOROTHEA/dorothea_train.data",
+    let X_train = build_x_matrix(&get_raw_data("http://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/DOROTHEA/dorothea_train.data",
                                                "./examples/dorothea_train.data"));
-    let X_test = build_x_matrix(&get_raw_data("https://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/DOROTHEA/dorothea_valid.data",
+    let X_test = build_x_matrix(&get_raw_data("http://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/DOROTHEA/dorothea_valid.data",
                                               "./examples/dorothea_valid.data"));
 
     (X_train, X_test)
@@ -119,9 +119,9 @@ fn get_train_data() -> (SparseRowArray, SparseRowArray) {
 
 fn get_target_data() -> (Array, Array) {
 
-    let y_train = build_y_array(&get_raw_data("https://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/DOROTHEA/dorothea_train.labels",
+    let y_train = build_y_array(&get_raw_data("http://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/DOROTHEA/dorothea_train.labels",
                                               "./examples/dorothea_train.labels"));
-    let y_test = build_y_array(&get_raw_data("https://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/dorothea_valid.labels",
+    let y_test = build_y_array(&get_raw_data("http://archive.ics.uci.edu/ml/machine-learning-databases/dorothea/dorothea_valid.labels",
                                              "./examples/dorothea_valid.labels"));
 
     (y_train, y_test)

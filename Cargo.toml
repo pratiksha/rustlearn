@@ -22,6 +22,8 @@ rand = "0.3"
 crossbeam = "0.2.9"
 serde = "1.0"
 serde_derive = "1.0"
+hyper = "0.10.0"
+libc = ""
 
 [build-dependencies]
 cc = "1.0"
@@ -29,10 +31,17 @@ cc = "1.0"
 [dev-dependencies]
 bincode = "1.0"
 csv = "0.14"
-hyper = "0.7.0"
+hyper = "0.13.0"
 serde_json = "1.0"
 time = "0.1"
 
 [features]
 all_tests = []
 bench = []
+
+# For Clamor.
+[dependencies.rsmalloc]
+path = "../rsmalloc"
+
+[lib]
+crate-type = ["cdylib"]
